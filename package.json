@@ -1,0 +1,10 @@
+{
+  "name": "kingpreflight",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/preview-server.mjs",
+    "scan": "node scripts/scan.mjs"
+  }
+}

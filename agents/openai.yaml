@@ -1,0 +1,4 @@
+interface:
+  display_name: "KingPreflight"
+  short_description: "Review a folder before sharing it"
+  default_prompt: "Review this folder before I share it."

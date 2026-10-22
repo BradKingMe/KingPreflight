@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f2f5f1">
+  <meta name="description" content="Review a folder locally before you share it.">
+  <title>KingPreflight — folder review</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Main navigation">
+      <a class="brand" href="./" aria-label="KingPreflight home">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M5 22V6h5l4 7 5-7h4v16h-4v-9l-5 7-5-7v9z"/></svg></span>
+        <span class="brand-name"><strong>KING</strong><strong>PREFLIGHT</strong></span>
+      </a>
+      <p class="nav-label">Workspace</p>
+      <a class="nav-item is-active" href="#review" aria-current="page">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 12 2.5 2.5L16 9"/></svg>
+        Folder review
+      </a>
+      <p class="nav-label nav-label-spaced">Guides</p>
+      <button class="nav-item" type="button" data-guide="checks">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h7"/></svg>
+        What gets checked
+      </button>
+      <button class="nav-item" type="button" data-guide="limits">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 22h4M8 14c-1.3-1.1-2-2.6-2-4.3a6 6 0 1 1 12 0c0 1.7-.7 3.2-2 4.3-.8.7-1 1.3-1 2H9c0-.7-.2-1.3-1-2z"/></svg>
+        Privacy &amp; limits
+      </button>
+      <div class="sidebar-trust">
+        <span class="trust-check" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="m4 10 4 4 8-9"/></svg></span>
+        <div><strong>Runs on this device</strong><span>No upload. No file changes.</span></div>
+      </div>
+    </aside>
+
+    <main id="review" class="main">
+      <header class="topbar">
+        <span class="local-badge"><span class="status-dot"></span>Local-only review</span>
+        <button id="exportReport" class="quiet-button" type="button" disabled>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2v11m-4-4 4 4 4-4M3 17h14"/></svg>
+          Export report
+        </button>
+      </header>
+
+      <div class="content">
+        <section class="intro" aria-labelledby="page-title">
+          <div>
+            <h1 id="page-title">Know what’s in the folder<br class="desktop-break"> before it goes.</h1>
+            <p>Check for likely sensitive details and easy-to-miss files before you send, upload, or publish.</p>
+          </div>
+          <label class="primary-button" for="folderInput">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2v11m-4-4 4 4 4-4M3 17h14"/></svg>
+            Choose a folder
+          </label>
+          <input id="folderInput" type="file" webkitdirectory directory multiple hidden>
+        </section>
+
+        <section class="review-section" aria-labelledby="review-title">
+          <div class="review-heading">
+            <div>
+              <div class="eyebrow" id="review-mode">Example review</div>
+              <h2 id="review-title">Client handoff <span id="review-path">/ deliverables / june</span></h2>
+            </div>
+            <span id="review-count" class="attention-badge"><span></span>3 need a look</span>
+          </div>
+
+          <div class="review-layout">
+            <section class="findings-panel" aria-labelledby="findings-title">
+              <header class="panel-heading">
+                <div>
+                  <h3 id="findings-title">Review findings</h3>
+                  <p id="panel-copy">The scan points out things to inspect. You decide what belongs.</p>
+                </div>
+                <div id="filter-controls" class="filter-controls" aria-label="Filter findings">
+                  <button class="filter-button is-selected" type="button" data-filter="all" aria-pressed="true">All</button>
+                  <button class="filter-button" type="button" data-filter="high" aria-pressed="false">High</button>
+                  <button class="filter-button" type="button" data-filter="review" aria-pressed="false">Review</button>
+                  <button class="filter-button" type="button" data-filter="note" aria-pressed="false">Notes</button>
+                </div>
+              </header>
+              <div class="finding-columns" aria-hidden="true"><span>Priority</span><span>File</span><span>Why it was flagged</span></div>
+              <div id="findings-list" class="findings-list"></div>
+              <div id="empty-findings" class="empty-findings" hidden>
+                <span class="empty-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></span>
+                <div><strong>No patterns flagged</strong><p>A clean scan is not a safety guarantee. Inspect the files you plan to share.</p></div>
+              </div>
+              <p id="filter-empty" class="filter-empty" hidden>No findings in this group.</p>
+              <div class="coverage-line">
+                <span class="coverage-icon" aria-hidden="true"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M6 7h8M6 10h8M6 13h5"/></svg></span>
+                <div><strong>Coverage for this scan</strong><span id="coverage-counts">Example: 11 text files read · 4 document bodies skipped · 3 folders excluded</span></div>
+                <button id="coverageDetails" class="text-button" type="button">Details</button>
+              </div>
+              <p id="scan-status" class="scan-status" role="status" aria-live="polite">Fictional sample data · choose a folder to scan your own files.</p>
+            </section>
+
+            <aside class="summary-panel" aria-labelledby="summary-title">
+              <h3 id="summary-title">Folder summary</h3>
+              <div class="summary-total"><span>Items found</span><strong id="file-count">18</strong><small>files in this folder</small></div>
+              <div class="summary-divider"></div>
+              <h4>What the scan can see</h4>
+              <ul class="scope-list">
+                <li><span class="scope-dot is-covered"></span>File names and types</li>
+                <li><span class="scope-dot is-covered"></span>Selected text files</li>
+                <li><span class="scope-dot is-limited"></span>Common risk patterns</li>
+              </ul>
+              <div class="summary-divider"></div>
+              <h4>Not a safety guarantee</h4>
+              <p class="summary-note">A clean scan can still miss sensitive content. Inspect every file you plan to share, especially PDFs, Office files, images, and archives.</p>
+              <button id="exampleButton" class="outline-button" type="button">Load example review</button>
+            </aside>
+          </div>
+        </section>
+
+        <footer class="page-footer">
+          <span class="footer-status"><span class="status-dot"></span><strong>Your files stay on this device.</strong></span>
+          <span>KingPreflight does not upload, alter, or delete your files.</span>
+          <span class="version-label">v0.1 preview</span>
+        </footer>
+      </div>
+
+      <dialog id="guideDialog" class="guide-dialog">
+        <form method="dialog">
+          <button class="dialog-close" aria-label="Close guide">×</button>
+          <p class="eyebrow" id="dialog-eyebrow">Privacy &amp; coverage</p>
+          <h2 id="dialog-title">Know the limits</h2>
+          <div id="dialog-body" class="dialog-body"></div>
+          <button class="primary-button dialog-done">Done</button>
+        </form>
+      </dialog>
+    </main>
+  </div>
+</body>
+</html>
