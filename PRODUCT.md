@@ -8,11 +8,11 @@ web
 
 ## Stack
 
-Provisional for this build: dependency-free HTML, CSS, and JavaScript for the offline browser interface, plus a small Node.js command-line scanner for Codex workflows. This is a session-level implementation choice made because no framework preference was supplied; it is not a saved preference.
+User-selected for this project: dependency-free HTML, CSS, and JavaScript for the local browser interface, plus a small Node.js command-line scanner for Codex workflows.
 
 ## Users
 
-Working assumption from the request for something “everyone can use”: people preparing a folder to send, upload, or publish who want to catch accidental sensitive content or extra files before sharing.
+Any person preparing a folder to send, upload, publish, or hand off who wants to catch accidental sensitive content or extra files before sharing.
 
 ## Product Purpose
 
