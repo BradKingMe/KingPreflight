@@ -23,3 +23,7 @@ Files above 2 MB, or beyond the 64 MB total text-read budget, have their names c
 ## User decision
 
 KingPreflight does not remove files or certify a folder. A person should open the flagged and uninspected files and decide what to share. “No patterns flagged” means only that this limited scan did not detect its known patterns.
+
+## Audit limitations
+
+UTF-8 is the supported content encoding. Invalid encoding and NUL-containing text are counted as uninspected. Both interfaces stop at 10,000 files; the CLI additionally bounds traversal to 50,000 entries and 100 levels. Browser selection cannot independently verify symlink targets. The CLI skips detected symlinks, but a folder being modified concurrently is outside its guarantees. Run it against a stable folder snapshot when that distinction matters.

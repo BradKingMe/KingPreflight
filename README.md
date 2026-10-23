@@ -52,3 +52,11 @@ This is a pattern-based review aid. It can miss sensitive data and produce false
 
 No license has been selected yet.
 
+
+## Audit and checks
+
+Run `npm ci` and `npm test` to run the regression suite. The browser check requires Google Chrome installed. Runtime scanning has no package dependencies.
+
+The preview server serves only four app assets from the checkout, rejects other Host headers, and does not expose arbitrary files from the launch directory. It is a development preview, not a public hosting server.
+
+Both scanners inspect at most 10,000 files. The CLI also bounds directory traversal to 50,000 visited entries and 100 path levels, reporting incomplete coverage. UTF-8 text containing NUL or invalid byte sequences is uninspected. Browser findings show at most 500 rows; JSON retains all findings. The CLI rejects a linked root and skips detected symbolic links. Do not scan folders concurrently modified by another process: filesystem checks cannot guarantee protection against every path replacement race, especially on Windows. Browser folder selection cannot independently verify symbolic-link targets.

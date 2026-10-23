@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs/promises";
 import path from "node:path";
+import { constants } from 'node:fs';
 import { inspectFile, isTextFile, summarizeFiles } from "../src/scanner.js";
 
 const MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024;
@@ -32,7 +33,8 @@ async function run() {
   }
 
   const rootArg = argValue("--root");
-  if (!rootArg) {
+  const args = process.argv.slice(2);
+  if (!rootArg || rootArg.startsWith('--') || args.some((arg, index) => !['--root', '--json'].includes(arg) && args[index - 1] !== '--root')) {
     console.error(usage());
     process.exitCode = 2;
     return;
@@ -40,8 +42,8 @@ async function run() {
 
   const root = path.resolve(rootArg);
   try {
-    const rootStat = await fs.stat(root);
-    if (!rootStat.isDirectory()) throw new Error("The selected root is not a folder.");
+    const rootStat = await fs.lstat(root);
+    if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new Error("Select a real folder, not a symbolic link.");
   } catch (_) {
     console.error("Could not open folder. Check the path and permissions.");
     process.exitCode = 2;
@@ -53,8 +55,14 @@ async function run() {
   const unreadable = [];
   let totalTextBytes = 0;
   let reachedFileLimit = false;
+  let visitedEntries = 0;
+  let reachedTraversalLimit = false;
 
   async function visit(directory, relativeDirectory) {
+    if (relativeDirectory.split('/').length > 100 || ++visitedEntries > 50000) {
+      reachedTraversalLimit = true;
+      return;
+    }
     let entries;
     try {
       entries = await fs.readdir(directory, { withFileTypes: true });
@@ -66,6 +74,7 @@ async function run() {
     entries.sort(function (a, b) { return a.name.localeCompare(b.name); });
 
     for (const entry of entries) {
+      if (++visitedEntries > 50000) { reachedTraversalLimit = true; return; }
       if (files.length >= MAX_FILES) {
         reachedFileLimit = true;
         return;
@@ -80,14 +89,15 @@ async function run() {
       if (entry.isDirectory()) {
         if (IGNORED_DIRECTORIES.has(entry.name.toLowerCase())) skippedDirectories.push(rel);
         else await visit(absolute, rel);
-        if (reachedFileLimit) return;
+        if (reachedFileLimit || reachedTraversalLimit) return;
         continue;
       }
       if (!entry.isFile()) continue;
 
       let stat;
       try {
-        stat = await fs.stat(absolute);
+        stat = await fs.lstat(absolute);
+        if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('Entry changed.');
       } catch (error) {
         unreadable.push({ path: rel, reason: "File metadata could not be read." });
         continue;
@@ -97,9 +107,23 @@ async function run() {
       let contentInspected = false;
       if (isTextFile(rel) && stat.size <= MAX_TEXT_FILE_BYTES && totalTextBytes + stat.size <= MAX_TEXT_TOTAL_BYTES) {
         try {
-          content = await fs.readFile(absolute, "utf8");
+          const handle = await fs.open(absolute, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+          try {
+            const opened = await handle.stat();
+            if (!opened.isFile() || opened.size > MAX_TEXT_FILE_BYTES) throw new Error('Entry changed.');
+            const buffer = Buffer.alloc(Math.min(MAX_TEXT_FILE_BYTES + 1, MAX_TEXT_TOTAL_BYTES - totalTextBytes + 1));
+            let offset = 0;
+            while (offset < buffer.length) {
+              const { bytesRead } = await handle.read(buffer, offset, buffer.length - offset, null);
+              if (!bytesRead) break;
+              offset += bytesRead;
+            }
+            if (offset > MAX_TEXT_FILE_BYTES || totalTextBytes + offset > MAX_TEXT_TOTAL_BYTES) throw new Error('Read limit exceeded.');
+            totalTextBytes += offset;
+            content = new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, offset));
+            if (content.includes('\u0000')) throw new Error('Unsupported text encoding.');
+          } finally { await handle.close(); }
           contentInspected = true;
-          totalTextBytes += stat.size;
         } catch (error) {
           unreadable.push({ path: rel, reason: "File content could not be read." });
         }
@@ -130,6 +154,7 @@ async function run() {
       ignoredDirectories: skippedDirectories,
       unreadableItems: unreadable,
       stoppedAtFileLimit: reachedFileLimit,
+      stoppedAtTraversalLimit: reachedTraversalLimit,
       textFileLimitBytes: MAX_TEXT_FILE_BYTES,
       totalTextReadLimitBytes: MAX_TEXT_TOTAL_BYTES
     },
@@ -146,7 +171,8 @@ async function run() {
   }
 
   console.log("KingPreflight · local folder review");
-  console.log("Folder: " + report.root + " · " + summary.fileCount + " files");
+  const safe = value => JSON.stringify(String(value));
+  console.log("Folder: " + safe(report.root) + " · " + summary.fileCount + " files");
   console.log("Read-only scan. No file contents or matched values are written to this report.");
   console.log("Text files inspected: " + summary.inspectedTextFiles + " · file bodies not inspected: " + summary.uninspectedContents);
   console.log("");
@@ -154,7 +180,7 @@ async function run() {
   if (findings.length === 0) console.log("No patterns were flagged. This does not mean the folder is safe to share.");
   else {
     for (const item of findings) {
-      console.log("[" + item.severity.toUpperCase() + "] " + item.path);
+      console.log("[" + item.severity.toUpperCase() + "] " + safe(item.path));
       console.log("  " + item.title + " — " + item.detail);
     }
   }
@@ -163,21 +189,22 @@ async function run() {
   if (notInspected.length) {
     console.log("");
     console.log("File bodies not inspected: " + notInspected.length);
-    for (const file of notInspected.slice(0, 25)) console.log("  " + file.path);
+    for (const file of notInspected.slice(0, 25)) console.log("  " + safe(file.path));
     if (notInspected.length > 25) console.log("  ... and " + (notInspected.length - 25) + " more; see the JSON report for the full list.");
   }
 
   if (skippedDirectories.length) {
     console.log("");
     console.log("Skipped directories (not scanned):");
-    for (const name of skippedDirectories) console.log("  " + name);
+    for (const name of skippedDirectories) console.log("  " + safe(name));
   }
   if (unreadable.length) {
     console.log("");
     console.log("Items the scanner could not read: " + unreadable.length);
-    for (const item of unreadable) console.log("  " + item.path + " — " + item.reason);
+    for (const item of unreadable) console.log("  " + safe(item.path) + " — " + item.reason);
   }
   if (reachedFileLimit) console.log("\nStopped after " + MAX_FILES + " files. Some contents may remain uninspected.");
+  if (reachedTraversalLimit) console.log('Traversal limit reached. Some folders remain uninspected.');
 
   console.log("");
   console.log("Review every file you plan to share, including PDFs, Office files, images, and archives.");

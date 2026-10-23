@@ -1,6 +1,8 @@
 import { inspectFile, isTextFile, summarizeFiles } from "../src/scanner.js";
 
 const MAX_TEXT_BYTES = 2 * 1024 * 1024;
+let scanGeneration = 0;
+let scanning = false;
 const state = { files: [], findings: [], root: "", summary: null, coverage: null, filter: "all", example: true };
 
 const sampleFiles = [
@@ -29,7 +31,7 @@ const exampleReport = {
   root: "Client handoff",
   files: sampleFiles,
   findings: sampleFindings,
-  summary: { fileCount: 18, highCount: 1, reviewCount: 2, noteCount: 1, inspectedTextFiles: 11, uninspectedContents: 7 },
+  summary: { ...summarizeFiles(sampleFiles), findingCount: sampleFindings.length, noteCount: sampleFindings.filter(f => f.severity === "note").length },
   coverage: { ignoredDirectories: ["node_modules", "build", "coverage"], unreadableItems: [], stoppedAtFileLimit: false }
 };
 
@@ -96,7 +98,8 @@ function renderFindings() {
     return state.filter === "all" || finding.severity === state.filter;
   });
   findingsList.replaceChildren();
-  active.forEach(function (finding) { findingsList.append(renderFinding(finding)); });
+  active.slice(0, 500).forEach(function (finding) { findingsList.append(renderFinding(finding)); });
+  if (active.length > 500) findingsList.append(make('p', '', 'Showing 500 findings. Export the JSON report for all findings.'));
 
   document.getElementById("empty-findings").hidden = state.findings.length !== 0;
   document.getElementById("filter-empty").hidden = state.findings.length === 0 || active.length !== 0;
@@ -118,10 +121,12 @@ function renderFindings() {
   document.getElementById("panel-copy").textContent = state.example
     ? "The scan points out things to inspect. You decide what belongs."
     : "Signals to inspect, not a verdict about whether this folder is safe.";
-  exportButton.disabled = false;
+  exportButton.disabled = scanning;
 }
 
 function setExample() {
+  scanGeneration++;
+  scanning = false;
   state.files = exampleReport.files;
   state.findings = exampleReport.findings;
   state.summary = Object.assign({}, exampleReport.summary);
@@ -164,39 +169,53 @@ function makeReport() {
 }
 
 async function scanSelection(fileList) {
+  const generation = ++scanGeneration;
   const files = Array.from(fileList || []);
   if (files.length === 0) {
+    scanning = false;
+    exportButton.disabled = !state.summary;
     scanStatus.classList.add("is-error");
     scanStatus.textContent = "No folder files were selected. Choose a folder and try again.";
     return;
   }
 
   scanStatus.classList.remove("is-error");
+  scanning = true;
+  exportButton.disabled = true;
   scanStatus.textContent = "Scanning selected files locally…";
   const firstPath = files[0].webkitRelativePath || files[0].name;
-  state.root = firstPath.split("/")[0] || "Selected folder";
+  const selectedRoot = firstPath.split("/")[0] || "Selected folder";
   const inspected = [];
+  const unreadableItems = [];
   let totalTextBytes = 0;
 
-  for (const file of files) {
+  for (const file of files.slice(0, 10000)) {
+    if (generation !== scanGeneration) return;
     const relativePath = file.webkitRelativePath || file.name;
     let content = "";
     let contentInspected = false;
     if (isTextFile(relativePath) && file.size <= MAX_TEXT_BYTES && totalTextBytes + file.size <= 64 * 1024 * 1024) {
       try {
-        content = await file.text();
+        const buffer = await file.arrayBuffer();
+        if (generation !== scanGeneration) return;
+        content = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+        if (content.includes('\u0000')) throw new Error('Unsupported text encoding');
         totalTextBytes += file.size;
         contentInspected = true;
       } catch (_) {
         contentInspected = false;
+        unreadableItems.push({ path: relativePath, reason: 'Could not read as UTF-8 text.' });
       }
     }
     inspected.push(inspectFile({ path: relativePath, bytes: file.size, content: content, contentInspected: contentInspected }));
   }
 
+  if (generation !== scanGeneration) return;
+  scanning = false;
+  state.root = selectedRoot;
   state.files = inspected;
   state.summary = summarizeFiles(inspected);
-  state.coverage = { ignoredDirectories: [], unreadableItems: [], stoppedAtFileLimit: false };
+  state.coverage = { ignoredDirectories: [], unreadableItems, stoppedAtFileLimit: files.length > 10000 };
   state.findings = inspected.flatMap(function (file) {
     const fileFindings = file.findings.map(function (finding) {
       return Object.assign({ path: file.path, bytes: file.bytes, extension: file.extension }, finding);
@@ -255,14 +274,16 @@ filterControls.addEventListener("click", function (event) {
 document.getElementById("exampleButton").addEventListener("click", setExample);
 
 exportButton.addEventListener("click", function () {
-  if (!state.summary) return;
+  if (!state.summary || scanning) return;
   const blob = new Blob([JSON.stringify(makeReport(), null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = "kingpreflight-review.json";
+  document.body.append(anchor);
   anchor.click();
-  URL.revokeObjectURL(url);
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 
 document.getElementById("coverageDetails").addEventListener("click", function () {

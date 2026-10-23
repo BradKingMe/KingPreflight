@@ -38,7 +38,7 @@ function add(findings, severity, code, title, detail) {
 }
 
 export function isTextFile(filePath) {
-  return TEXT_EXTENSIONS.has(extensionOf(filePath));
+  return TEXT_EXTENSIONS.has(extensionOf(filePath)) || /(?:^|[\\/])(?:\.npmrc|\.pypirc|\.netrc|\.gitconfig|\.bashrc|\.zshrc|credentials|config)$/i.test(filePath);
 }
 
 export function inspectFile(input) {
@@ -94,7 +94,7 @@ export function inspectFile(input) {
     path: filePath,
     bytes: bytes,
     extension: ext || "(no extension)",
-    contentInspected: Boolean(input.contentInspected),
+    contentInspected: Boolean(input.contentInspected && typeof input.content === 'string'),
     findings: findings
   };
 }

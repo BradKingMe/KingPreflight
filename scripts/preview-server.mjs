@@ -1,76 +1,50 @@
-#!/usr/bin/env node
-import fs from "node:fs/promises";
-import http from "node:http";
-import path from "node:path";
-
-const root = path.resolve(process.cwd());
-const port = Number(process.argv[2] || 4173);
-const mime = new Map([
-  [".html", "text/html; charset=utf-8"],
-  [".css", "text/css; charset=utf-8"],
-  [".js", "text/javascript; charset=utf-8"],
-  [".json", "application/json; charset=utf-8"],
-  [".svg", "image/svg+xml"],
-  [".png", "image/png"]
+import fs from 'node:fs/promises';
+import http from 'node:http';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+const root = fileURLToPath(new URL('../', import.meta.url));
+const assets = new Map([
+  ['/app/index.html', 'text/html; charset=utf-8'],
+  ['/app/app.js', 'text/javascript; charset=utf-8'],
+  ['/app/styles.css', 'text/css; charset=utf-8'],
+  ['/src/scanner.js', 'text/javascript; charset=utf-8']
 ]);
-
-if (!Number.isInteger(port) || port < 1 || port > 65535) {
-  console.error("Port must be an integer between 1 and 65535.");
-  process.exit(2);
+export function createPreviewServer() {
+  return http.createServer(async (request, response) => {
+    const finish = (status, text) => { response.writeHead(status, {'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store'}); response.end(text); };
+    const port = response.socket.localPort;
+    if (![ `127.0.0.1:${port}`, `localhost:${port}` ].includes(request.headers.host)) return finish(403, 'Forbidden host.');
+    if (!['GET', 'HEAD'].includes(request.method)) return finish(405, 'Method not allowed.');
+    let pathname;
+    try { pathname = decodeURIComponent(new URL(request.url, 'http://127.0.0.1').pathname); }
+    catch { return finish(400, 'Invalid URL.'); }
+    if (pathname === '/' || pathname === '/app/') pathname = '/app/index.html';
+    if (!assets.has(pathname)) return finish(404, 'Not found.');
+    try {
+      const target = path.join(root, pathname.slice(1));
+      // Reject symlinks in every asset path component before opening it.
+      let current = root;
+      for (const part of pathname.slice(1).split('/')) {
+        current = path.join(current, part);
+        if ((await fs.lstat(current)).isSymbolicLink()) return finish(403, 'Linked assets are not served.');
+      }
+      const body = await fs.readFile(target);
+      response.writeHead(200, {
+        'Content-Type': assets.get(pathname), 'Content-Length':body.length,
+        'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff',
+        'Referrer-Policy':'no-referrer',
+        'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+      });
+      response.end(request.method === 'HEAD' ? undefined : body);
+    } catch { finish(404, 'Not found.'); }
+  });
 }
-
-const server = http.createServer(async function (request, response) {
-  if (request.method !== "GET" && request.method !== "HEAD") {
-    response.writeHead(405, { "Content-Type": "text/plain; charset=utf-8", "Allow": "GET, HEAD" });
-    response.end("Method not allowed.\n");
-    return;
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  const port = Number(process.argv[2] || 4173);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) { console.error('Port must be an integer between 1 and 65535.'); process.exitCode = 2; }
+  else {
+    const server = createPreviewServer();
+    server.on('error', error => { console.error(`Preview server failed: ${error.code || 'unknown error'}`); process.exitCode = 1; });
+    server.listen(port, '127.0.0.1', () => console.log(`KingPreflight preview: http://127.0.0.1:${port}/app/`));
   }
-
-  let pathname;
-  try {
-    pathname = decodeURIComponent(new URL(request.url || "/", "http://127.0.0.1").pathname);
-  } catch (_) {
-    response.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
-    response.end("Invalid URL.\n");
-    return;
-  }
-
-  if (pathname === "/") pathname = "/app/";
-  let target = path.resolve(root, "." + pathname);
-  const rootPrefix = root.endsWith(path.sep) ? root : root + path.sep;
-  if (target !== root && !target.startsWith(rootPrefix)) {
-    response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
-    response.end("Forbidden.\n");
-    return;
-  }
-
-  try {
-    let stat = await fs.stat(target);
-    if (stat.isDirectory()) {
-      target = path.join(target, "index.html");
-      stat = await fs.stat(target);
-    }
-    if (!stat.isFile()) throw new Error("Not a file.");
-
-    const headers = {
-      "Content-Type": mime.get(path.extname(target).toLowerCase()) || "application/octet-stream",
-      "Content-Length": stat.size,
-      "Cache-Control": "no-store",
-      "X-Content-Type-Options": "nosniff",
-      "Referrer-Policy": "no-referrer",
-      "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
-    };
-    response.writeHead(200, headers);
-    if (request.method === "HEAD") response.end();
-    else response.end(await fs.readFile(target));
-  } catch (_) {
-    response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
-    response.end("Not found.\n");
-  }
-});
-
-server.listen(port, "127.0.0.1", function () {
-  console.log("KingPreflight preview: http://127.0.0.1:" + port + "/app/");
-  console.log("Static files are served from this project; the server listens only on 127.0.0.1.");
-  console.log("Press Ctrl+C to stop.");
-});
+}
