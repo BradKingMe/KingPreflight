@@ -65,15 +65,13 @@ async function run() {
     }
     let entries;
     try {
-      entries = await fs.readdir(directory, { withFileTypes: true });
+      entries = await fs.opendir(directory);
     } catch (error) {
       unreadable.push({ path: relativeDirectory || ".", reason: "Folder could not be read." });
       return;
     }
 
-    entries.sort(function (a, b) { return a.name.localeCompare(b.name); });
-
-    for (const entry of entries) {
+    for await (const entry of entries) {
       if (++visitedEntries > 50000) { reachedTraversalLimit = true; return; }
       if (files.length >= MAX_FILES) {
         reachedFileLimit = true;

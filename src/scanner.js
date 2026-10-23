@@ -13,11 +13,11 @@ const SAFE_DOTFILES = new Set([
   ".env.sample", ".env.template"
 ]);
 
-const SENSITIVE_NAME = /(^|[._-])(credentials?|secrets?|private[-_]?key|service[-_]?account|id_rsa|token)([._-]|$)/i;
+const SENSITIVE_NAME = /(^|[._-])(credentials?|secrets?|private[-_]?key|service[-_]?account|id_rsa|id_ed25519|id_ecdsa|token)([._-]|$)/i;
 const BACKUP_NAME = /(?:~$|\.bak$|\.old$|\.orig$|\.backup$|\.tmp$|(?:^|[._ -])copy(?:[._ -]|$)|(?:^|[._ -])final[-_ ]?final(?:[._ -]|$))/i;
-const PRIVATE_KEY = /-----BEGIN (?:RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----/;
+const PRIVATE_KEY = /-----BEGIN (?:RSA |OPENSSH |EC |DSA |ENCRYPTED )?PRIVATE KEY-----/;
 const AWS_KEY = /\bAKIA[0-9A-Z]{16}\b/;
-const GITHUB_TOKEN = /\bgh[pousr]_[A-Za-z0-9_]{30,}\b/i;
+const GITHUB_TOKEN = /\b(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]{30,}\b/;
 const SLACK_TOKEN = /\bxox[baprs]-[A-Za-z0-9-]{15,}\b/i;
 const STRIPE_KEY = /\bsk_(?:live|test)_[A-Za-z0-9]{16,}\b/i;
 const GENERIC_SECRET = /\b(?:api[_-]?key|secret|password|token|client[_-]?secret)\s*[:=]\s*["']?([A-Za-z0-9/+=._-]{8,})/i;

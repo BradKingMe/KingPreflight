@@ -15,6 +15,9 @@ test('reports signals without retaining matched values', () => {
   assert.ok(result.findings.some(f => f.code === 'secret-assignment'));
   assert.ok(!JSON.stringify(result).includes(secret));
   assert.equal(inspectFile({path:'x.txt',contentInspected:true}).contentInspected,false);
+  assert.ok(inspectFile({path:'text.txt',contentInspected:true,content:'github_pat_' + 'a'.repeat(50)}).findings.some(f => f.code === 'service-token-content'));
+  assert.ok(inspectFile({path:'id_ed25519'}).findings.some(f => f.code === 'sensitive-name'));
+  assert.ok(inspectFile({path:'text.txt',contentInspected:true,content:'-----BEGIN ENCRYPTED PRIVATE KEY-----'}).findings.some(f => f.code === 'private-key-content'));
 });
 test('CLI preserves files, rejects invalid UTF-8, and reports excluded bodies', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(),'preflight-audit-'));

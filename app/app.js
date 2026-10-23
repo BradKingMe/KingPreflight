@@ -195,12 +195,12 @@ async function scanSelection(fileList) {
     let content = "";
     let contentInspected = false;
     if (isTextFile(relativePath) && file.size <= MAX_TEXT_BYTES && totalTextBytes + file.size <= 64 * 1024 * 1024) {
+      totalTextBytes += file.size;
       try {
         const buffer = await file.arrayBuffer();
         if (generation !== scanGeneration) return;
         content = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
         if (content.includes('\u0000')) throw new Error('Unsupported text encoding');
-        totalTextBytes += file.size;
         contentInspected = true;
       } catch (_) {
         contentInspected = false;
